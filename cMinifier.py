@@ -1,8 +1,6 @@
 """cMinifier.py: Minifies and/or unminifies Macro/Keybind mod code. """
 
-import re
-
-import re
+import re, sys, io
 from typing import List, Dict
 
 # TODO: support flags
@@ -59,6 +57,7 @@ class MacroMinifier():
     self.is_parsed: bool = False
     self.variables: List[MacroVariable] = []
     self.original_minified_map: Dict[MacroVariable, MacroVariable] = {}
+    self.key_index = 0
 
   def parse(self):
     """Parses the code into separate statements."""
@@ -67,12 +66,13 @@ class MacroMinifier():
     var_regex = re.compile(r"(@?[#&])(\w+)")
 
     for statement in self.raw_statements:
-      match = var_regex.match(statement)
+      match = var_regex.search(statement)
       if(match is None):
         continue
 
       is_global = match.group(1).startswith('@')
-      if(str(match) not in self.variables):
+      if(match.group(0) not in self.variables):
+        print(f"[*] found variable {match.group(0)}")
         self.variables.append(MacroVariable(match.group(1)[-1], match.group(2), is_global))
 
     self.is_parsed = True
@@ -94,6 +94,7 @@ class MacroMinifier():
     self.macro_code = ";".join(self.raw_statements)
     for (original, minified) in self.original_minified_map.items():
       # TODO: optimize this
+      print(f"[*] replacing {original} with {minified}")
       self.macro_code = self.macro_code.replace(str(original), str(minified))
 
     return self.macro_code
@@ -101,7 +102,8 @@ class MacroMinifier():
   # simple base conversion alg (maybe optimizable?)
   def _generate_unique_key(self):
     toReturn: str = ""
-    index: int = len(self.original_minified_map)
+    index: int = self.key_index
+    self.key_index+=1
     if(index == 0):
       toReturn = "a"
 
@@ -117,11 +119,17 @@ class MacroMinifier():
 
 
 if __name__ == "__main__":
-  TEST_CODE = """
-  &string="teste";
-  @&gString="teste";
-  #int=0;
-  """
-  parser = MacroMinifier(TEST_CODE)
+  if(len(sys.argv) < 2):
+    sys.exit("[!] usage: cMinifier.py input.txt")
 
-  print(parser.minify())
+  
+  code = ""
+  with io.open(sys.argv[1], "r") as f:
+    code = f.read()
+
+  parser = MacroMinifier(code)
+
+  print("[*] writing output...")
+
+  with io.open(".".join(sys.argv[1].split(".").reverse().insert(1,"minified").reverse()), "w") as f:
+    f.write(parser.minify())
